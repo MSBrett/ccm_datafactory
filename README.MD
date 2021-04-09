@@ -1,7 +1,9 @@
 # Automating Azure cost data retrieval for offline analysis with Azure Data Factory
 
 ## About
-An example of how to use Azure Data Factory to retrieve usage data from the [Azure Management API](https://docs.microsoft.com/en-us/rest/api/consumption/usagedetails/list) and store the results in [Azure Data Lake](https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).  A [Service Principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal) with [Enrollment Reader](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#permissions-that-can-be-assigned-to-the-spn) permissions assigned at the [Enrollment level](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn) is required before deploying this example.
+An example of how to use Azure Data Factory to retrieve usage data from the [Azure Management API](https://docs.microsoft.com/en-us/rest/api/consumption/usagedetails/list) and store the results in [Azure Data Lake](https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).  
+
+A [Service Principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal) with [Enrollment Reader](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#permissions-that-can-be-assigned-to-the-spn) permissions assigned at the [Enrollment level](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn) is required before deploying this example.
 
 
 ### Deploy via the Azure Portal
@@ -40,3 +42,46 @@ Initialize the dataset by executing the "GetUsageRange" pipeline and providing t
 Once the dataset is initialized enable the daily schedule and **publish the changes.**
 
 ![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/StartSchedule.jpg)
+
+### Ingesting the data into Power BI
+
+To ingest the data into Power BI first create a function to decompress each file in Power BI
+
+***fnUnpackData***
+```script
+(zipData) =>
+let
+        Source = Binary.Decompress(zipData, Compression.GZip),
+        #"Imported" = Csv.Document(Source,[Delimiter=",", Columns=50, Encoding=1252, QuoteStyle=QuoteStyle.None]),
+        #"Promoted Headers" = Table.PromoteHeaders(#"Imported", [PromoteAllScalars=true])
+in
+        #"Promoted Headers"
+```
+
+Then create data tables with the following definitions and correct data lake URI
+
+***Amortized Costs***
+```script
+let
+    Source = AzureStorage.DataLake(https://DataLakeUri),
+    Filter = Table.SelectRows(Source, each [Name] = "amortizedcost.csv.gz"),
+    Unpack = Table.AddColumn(Filter, "Custom", each fnUnpackData([Content])),
+    #"Removed Columns" = Table.RemoveColumns(Unpack,{"Content", "Name", "Extension", "Date accessed", "Date modified", "Date created", "Attributes", "Folder Path"}),
+    #"Expand CSV" = Table.ExpandTableColumn(#"Removed Columns", "Custom", {"BillingAccountId", "BillingAccountName", "BillingPeriodStartDate", "BillingPeriodEndDate", "BillingProfileId", "BillingProfileName", "AccountOwnerId", "AccountName", "SubscriptionId", "SubscriptionName", "Date", "Product", "PartNumber", "MeterId", "ServiceFamily", "MeterCategory", "MeterSubCategory", "MeterRegion", "MeterName", "Quantity", "EffectivePrice", "Cost", "UnitPrice", "BillingCurrency", "ResourceLocation", "AvailabilityZone", "ConsumedService", "ResourceId", "ResourceName", "ServiceInfo1", "ServiceInfo2", "AdditionalInfo", "Tags", "InvoiceSectionId", "InvoiceSection", "CostCenter", "UnitOfMeasure", "ResourceGroup", "ReservationId", "ReservationName", "ProductOrderId", "ProductOrderName", "OfferId", "IsAzureCreditEligible", "Term", "PublisherName", "PlanName", "ChargeType", "Frequency", "PublisherType"}, {"BillingAccountId", "BillingAccountName", "BillingPeriodStartDate", "BillingPeriodEndDate", "BillingProfileId", "BillingProfileName", "AccountOwnerId", "AccountName", "SubscriptionId", "SubscriptionName", "Date", "Product", "PartNumber", "MeterId", "ServiceFamily", "MeterCategory", "MeterSubCategory", "MeterRegion", "MeterName", "Quantity", "EffectivePrice", "Cost", "UnitPrice", "BillingCurrency", "ResourceLocation", "AvailabilityZone", "ConsumedService", "ResourceId", "ResourceName", "ServiceInfo1", "ServiceInfo2", "AdditionalInfo", "Tags", "InvoiceSectionId", "InvoiceSection", "CostCenter", "UnitOfMeasure", "ResourceGroup", "ReservationId", "ReservationName", "ProductOrderId", "ProductOrderName", "OfferId", "IsAzureCreditEligible", "Term", "PublisherName", "PlanName", "ChargeType", "Frequency", "PublisherType"}),
+    #"Filtered Rows" = Table.SelectRows(#"Expand CSV", each ([ReservationName] <> "")),
+    #"Changed Type" = Table.TransformColumnTypes(#"Filtered Rows",{{"BillingAccountId", Int64.Type}, {"BillingAccountName", type text}, {"BillingPeriodStartDate", type date}, {"BillingPeriodEndDate", type date}, {"BillingProfileId", Int64.Type}, {"BillingProfileName", type text}, {"AccountOwnerId", type text}, {"AccountName", type text}, {"SubscriptionId", type text}, {"SubscriptionName", type text}, {"Date", type date}, {"Product", type text}, {"PartNumber", type text}, {"MeterId", type text}, {"ServiceFamily", type text}, {"MeterCategory", type text}, {"MeterSubCategory", type text}, {"MeterRegion", type text}, {"MeterName", type text}, {"Quantity", type number}, {"EffectivePrice", type number}, {"Cost", type number}, {"UnitPrice", type number}, {"BillingCurrency", type text}, {"ResourceLocation", type text}, {"AvailabilityZone", type any}, {"ConsumedService", type text}, {"ResourceId", type text}, {"ResourceName", type text}, {"ServiceInfo1", type any}, {"ServiceInfo2", type text}, {"AdditionalInfo", type text}, {"Tags", type text}, {"InvoiceSectionId", type any}, {"InvoiceSection", type text}, {"CostCenter", type text}, {"UnitOfMeasure", type text}, {"ResourceGroup", type text}, {"ReservationId", type text}, {"ReservationName", type text}, {"ProductOrderId", type text}, {"ProductOrderName", type text}, {"OfferId", type text}, {"IsAzureCreditEligible", type logical}, {"Term", Int64.Type}, {"PublisherName", type any}, {"PlanName", type any}, {"ChargeType", type text}, {"Frequency", type text}, {"PublisherType", type text}})
+in
+    #"Changed Type"
+```
+***Actual Costs***
+```script
+let
+    Source = AzureStorage.DataLake(https://DataLakeUri),
+    Filter = Table.SelectRows(Source, each [Name] = "actualcost.csv.gz"),
+    Unpack = Table.AddColumn(Filter, "Custom", each fnUnpackData([Content])),
+    #"Removed Columns" = Table.RemoveColumns(Unpack,{"Content", "Name", "Extension", "Date accessed", "Date modified", "Date created", "Attributes", "Folder Path"}),
+    #"Expand CSV" = Table.ExpandTableColumn(#"Removed Columns", "Custom", {"BillingAccountId", "BillingAccountName", "BillingPeriodStartDate", "BillingPeriodEndDate", "BillingProfileId", "BillingProfileName", "AccountOwnerId", "AccountName", "SubscriptionId", "SubscriptionName", "Date", "Product", "PartNumber", "MeterId", "ServiceFamily", "MeterCategory", "MeterSubCategory", "MeterRegion", "MeterName", "Quantity", "EffectivePrice", "Cost", "UnitPrice", "BillingCurrency", "ResourceLocation", "AvailabilityZone", "ConsumedService", "ResourceId", "ResourceName", "ServiceInfo1", "ServiceInfo2", "AdditionalInfo", "Tags", "InvoiceSectionId", "InvoiceSection", "CostCenter", "UnitOfMeasure", "ResourceGroup", "ReservationId", "ReservationName", "ProductOrderId", "ProductOrderName", "OfferId", "IsAzureCreditEligible", "Term", "PublisherName", "PlanName", "ChargeType", "Frequency", "PublisherType"}, {"BillingAccountId", "BillingAccountName", "BillingPeriodStartDate", "BillingPeriodEndDate", "BillingProfileId", "BillingProfileName", "AccountOwnerId", "AccountName", "SubscriptionId", "SubscriptionName", "Date", "Product", "PartNumber", "MeterId", "ServiceFamily", "MeterCategory", "MeterSubCategory", "MeterRegion", "MeterName", "Quantity", "EffectivePrice", "Cost", "UnitPrice", "BillingCurrency", "ResourceLocation", "AvailabilityZone", "ConsumedService", "ResourceId", "ResourceName", "ServiceInfo1", "ServiceInfo2", "AdditionalInfo", "Tags", "InvoiceSectionId", "InvoiceSection", "CostCenter", "UnitOfMeasure", "ResourceGroup", "ReservationId", "ReservationName", "ProductOrderId", "ProductOrderName", "OfferId", "IsAzureCreditEligible", "Term", "PublisherName", "PlanName", "ChargeType", "Frequency", "PublisherType"}),
+    #"Changed Type" = Table.TransformColumnTypes(#"Expand CSV",{{"BillingAccountId", Int64.Type}, {"BillingAccountName", type text}, {"BillingPeriodStartDate", type date}, {"BillingPeriodEndDate", type date}, {"BillingProfileId", Int64.Type}, {"BillingProfileName", type text}, {"AccountOwnerId", type text}, {"AccountName", type text}, {"SubscriptionId", type text}, {"SubscriptionName", type text}, {"Date", type date}, {"Product", type text}, {"PartNumber", type text}, {"MeterId", type text}, {"ServiceFamily", type text}, {"MeterCategory", type text}, {"MeterSubCategory", type text}, {"MeterRegion", type text}, {"MeterName", type text}, {"Quantity", type number}, {"EffectivePrice", type number}, {"Cost", type number}, {"UnitPrice", type number}, {"BillingCurrency", type text}, {"ResourceLocation", type text}, {"AvailabilityZone", type any}, {"ConsumedService", type text}, {"ResourceId", type text}, {"ResourceName", type text}, {"ServiceInfo1", type any}, {"ServiceInfo2", type text}, {"AdditionalInfo", type text}, {"Tags", type text}, {"InvoiceSectionId", type any}, {"InvoiceSection", type text}, {"CostCenter", type text}, {"UnitOfMeasure", type text}, {"ResourceGroup", type text}, {"ReservationId", type text}, {"ReservationName", type text}, {"ProductOrderId", type text}, {"ProductOrderName", type text}, {"OfferId", type text}, {"IsAzureCreditEligible", type logical}, {"Term", Int64.Type}, {"PublisherName", type any}, {"PlanName", type any}, {"ChargeType", type text}, {"Frequency", type text}, {"PublisherType", type text}})
+in
+    #"Changed Type"
+```
