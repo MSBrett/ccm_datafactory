@@ -1,0 +1,18 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "EnrollmentId": {
+            "value": "12345678"
+        },
+        "ServicePrincipalId": {
+            "value": "00000000-0000-0000-0000-000000000000"
+        },
+        "ServicePrincipalSecret": {
+            "value": "00000000000000000000000000000000"
+        },
+        "ServicePrincipalTenantId": {
+            "value": "00000000-0000-0000-0000-000000000000"
+        }
+    }
+}

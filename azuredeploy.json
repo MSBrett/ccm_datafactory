@@ -1,0 +1,1172 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "aadResourceId": {
+            "type": "string",
+            "defaultValue": "[parameters('managementApiUri')]",
+            "metadata": {
+                "description": "The AAD Resource ID for the Azure Management API"
+            }
+        },
+        "BlobContainerName": {
+            "type": "string",
+            "defaultValue": "[concat('ccm', uniqueString(resourceGroup().id, resourceGroup().location))]",
+            "metadata": {
+                "description": "Name of the blob container in the Azure Storage account."
+            }
+        },
+        "DataFactoryName": {
+            "type": "string",
+            "defaultValue": "[concat('datafactory', uniqueString(resourceGroup().id, resourceGroup().location))]",
+            "metadata": {
+                "description": "Data Factory Name"
+            }
+        },
+        "EnrollmentId": {
+            "type": "string",
+            "metadata": {
+                "description": "The EA Enrollment ID"
+            }
+        },
+        "KeyvaultName": {
+            "type": "string",
+            "defaultValue": "[concat('keyvault', uniqueString(resourceGroup().id, resourceGroup().location))]",
+            "metadata": {
+                "description": "The URI of the Azure Keyvault instance which keeps the service principal secret secret"
+            }
+        },
+        "ManagementApiUri": {
+            "type": "string",
+            "defaultValue": "https://management.azure.com",
+            "metadata": {
+                "description": "The base URL for the Azure Management API"
+            }
+        },
+        "ServicePrincipalId": {
+            "type": "string",
+            "metadata": {
+                "description": "The ID of the service principal used to connect to the management API"
+            }
+        },
+        "ServicePrincipalSecret": {
+            "type": "securestring",
+            "metadata": {
+                "description": "The name of the keyvault secret which contains the Service Principal password"
+            }
+        },
+        "ServicePrincipalTenantId": {
+            "type": "string",
+            "metadata": {
+                "description": "The ID of the AAD Tenant containing the service principal"
+            }
+        },
+        "StorageAccountName": {
+            "type": "string",
+            "defaultValue": "[concat('storage', uniqueString(resourceGroup().id, resourceGroup().location))]",
+            "metadata": {
+                "description": "Name of the Azure storage account that contains the input/output data."
+            }
+        }
+    },
+    "variables": {
+        "dataFactoryId": "[concat('Microsoft.DataFactory/factories/', parameters('DataFactoryName'))]",
+        "datalakeUri": "[concat('https://', parameters('storageAccountName'), '.dfs.core.windows.net')]",
+        "enterpriseReader": "[concat('svc-ea-reader-', uniqueString(resourceGroup().id, resourceGroup().location))]",
+        "keyvaultUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.azure.net/')]",
+        "keyvaultSecretUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.azure.net/secrets/', variables('enterpriseReader'), '?api-version=7.0')]",
+        "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
+    },
+    "resources": [
+        {
+            "name": "[concat( parameters('KeyvaultName'), '/', parameters('StorageAccountName'))]",
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "apiVersion": "2019-09-01",
+            "properties": {
+                "value": "[listKeys(variables('storageAccountId'), '2019-06-01').keys[0].value]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('KeyvaultName'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', parameters('StorageAccountName'))]"
+            ]
+        },
+        {
+            "name": "[concat( parameters('KeyvaultName'), '/', variables('enterpriseReader'))]",
+            "type": "Microsoft.KeyVault/vaults/secrets",
+            "apiVersion": "2019-09-01",
+            "properties": {
+                "value": "[parameters('ServicePrincipalSecret')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', parameters('KeyvaultName'))]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/ccmdatalake')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ccmdatalake",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "folderName": {
+                        "type": "String"
+                    },
+                    "fileName": {
+                        "type": "String"
+                    }
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "AzureBlobFSLocation",
+                        "fileName": {
+                            "value": "@{dataset().fileName}",
+                            "type": "Expression"
+                        },
+                        "folderPath": {
+                            "value": "@{dataset().folderName}",
+                            "type": "Expression"
+                        },
+                        "fileSystem": "[parameters('BlobContainerName')]"
+                    },
+                    "columnDelimiter": ",",
+                    "compressionCodec": "gzip",
+                    "compressionLevel": "Optimal",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmdatalake')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/ccmdatalake')]",
+            "type": "Microsoft.DataFactory/factories/linkedservices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureBlobFS",
+                "typeProperties": {
+                    "url": "[variables('datalakeUri')]",
+                    "accountKey": {
+                        "type": "AzureKeyVaultSecret",
+                        "store": {
+                            "referenceName": "ccmkeyvault",
+                            "type": "LinkedServiceReference"
+                        },
+                        "secretName": "[parameters('StorageAccountName')]"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmkeyvault')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/ccmkeyvault')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "AzureKeyVault",
+                "typeProperties": {
+                    "baseUrl": "[variables('keyvaultUri')]"
+                }
+            },
+            "dependsOn": [
+                "[variables('dataFactoryId')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/ccmreportstorage')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "ccmreportstorage",
+                    "type": "LinkedServiceReference",
+                    "parameters": {
+                        "BaseUrl": {
+                            "value": "@dataset().baseUrl",
+                            "type": "Expression"
+                        }
+                    }
+                },
+                "parameters": {
+                    "baseUrl": {
+                        "type": "string",
+                        "defaultValue": "https://ccmreportstorageeastus.blob.core.windows.net/armreports/"
+                    }
+                },
+                "annotations": [],
+                "type": "DelimitedText",
+                "typeProperties": {
+                    "location": {
+                        "type": "HttpServerLocation"
+                    },
+                    "columnDelimiter": ",",
+                    "escapeChar": "\\",
+                    "firstRowAsHeader": true,
+                    "quoteChar": "\""
+                },
+                "schema": []
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmreportstorage')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/ccmreportstorage')]",
+            "type": "Microsoft.DataFactory/factories/linkedServices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "parameters": {
+                    "BaseUrl": {
+                        "type": "String"
+                    }
+                },
+                "annotations": [],
+                "type": "HttpServer",
+                "typeProperties": {
+                    "url": "@{linkedService().BaseUrl}",
+                    "enableServerCertificateValidation": true,
+                    "authenticationType": "Anonymous"
+                }
+            },
+            "dependsOn": [
+                "[variables('dataFactoryId')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/DailyTrigger')]",
+            "type": "Microsoft.DataFactory/factories/triggers",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "runtimeState": "Started",
+                "pipelines": [
+                    {
+                        "pipelineReference": {
+                            "referenceName": "GetUsageCurrent",
+                            "type": "PipelineReference"
+                        }
+                    }
+                ],
+                "type": "ScheduleTrigger",
+                "typeProperties": {
+                    "recurrence": {
+                        "frequency": "Day",
+                        "interval": 1,
+                        "startTime": "2021-04-01T02:22:00Z",
+                        "timeZone": "UTC"
+                    }
+                }
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/pipelines/GetUsageCurrent')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/DownloadUsageDetails')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "Login",
+                        "type": "WebActivity",
+                        "dependsOn": [
+                            {
+                                "activity": "GetClientSecret",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "https://login.microsoftonline.com/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
+                                "type": "Expression"
+                            },
+                            "method": "POST",
+                            "headers": {
+                                "Content-Type": "application/x-www-form-urlencoded"
+                            },
+                            "body": {
+                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "GetUrl",
+                        "type": "WebActivity",
+                        "dependsOn": [
+                            {
+                                "activity": "Login",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 60,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/usageDetails/download?metric=@{pipeline().parameters.Metric}&$filter=properties/usageEnd eq '@{pipeline().parameters.UsageDate}'&api-version=2019-10-01",
+                                "type": "Expression"
+                            },
+                            "method": "GET",
+                            "headers": {
+                                "Authorization": {
+                                    "value": "Bearer @{activity('Login').output.access_token}",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "DownloadFile",
+                        "type": "Copy",
+                        "dependsOn": [
+                            {
+                                "activity": "DeleteFile",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 3,
+                            "retryIntervalInSeconds": 60,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "DelimitedTextSource",
+                                "storeSettings": {
+                                    "type": "HttpReadSettings",
+                                    "requestMethod": "GET"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "ccmreportstorage",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "baseUrl": {
+                                        "value": "@{activity('GetUrl').output.properties.downloadurl}",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@{pipeline().parameters.EnrollmentId}/@{formatDateTime(pipeline().parameters.UsageDate, 'yyyy')}/@{formatDateTime(pipeline().parameters.UsageDate, 'MM')}/@{formatDateTime(pipeline().parameters.UsageDate, 'dd')}",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": {
+                                        "value": "@{pipeline().parameters.Metric}.csv.gz",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "GetClientSecret",
+                        "type": "WebActivity",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "@pipeline().parameters.ClientSecret",
+                                "type": "Expression"
+                            },
+                            "method": "GET",
+                            "authentication": {
+                                "type": "MSI",
+                                "resource": "https://vault.azure.net"
+                            }
+                        }
+                    },
+                    {
+                        "name": "DeleteFile",
+                        "type": "Delete",
+                        "dependsOn": [
+                            {
+                                "activity": "TestDownloadUrl",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "dataset": {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@{pipeline().parameters.EnrollmentId}/@{formatDateTime(pipeline().parameters.UsageDate, 'yyyy')}/@{formatDateTime(pipeline().parameters.UsageDate, 'MM')}/@{formatDateTime(pipeline().parameters.UsageDate, 'dd')}",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": {
+                                        "value": "@{pipeline().parameters.Metric}.csv.gz",
+                                        "type": "Expression"
+                                    }
+                                }
+                            },
+                            "enableLogging": false,
+                            "storeSettings": {
+                                "type": "AzureBlobFSReadSettings",
+                                "recursive": true,
+                                "enablePartitionDiscovery": false
+                            }
+                        }
+                    },
+                    {
+                        "name": "TestDownloadUrl",
+                        "type": "IfCondition",
+                        "dependsOn": [
+                            {
+                                "activity": "GetUrl",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@not(equals(activity('GetUrl').output.properties.downloadurl, null))",
+                                "type": "Expression"
+                            },
+                            "ifFalseActivities": [
+                                {
+                                    "name": "Failure",
+                                    "type": "WebActivity",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "0.00:10:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": true,
+                                        "secureInput": true
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "url": "https://doesnotwork.local",
+                                        "method": "GET"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "parameters": {
+                    "TenantId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalTenantId')]"
+                    },
+                    "ClientId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalId')]"
+                    },
+                    "EnrollmentId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('EnrollmentId')]"
+                    },
+                    "UsageDate": {
+                        "type": "string",
+                        "defaultValue": "2021-04-01"
+                    },
+                    "ClientSecret": {
+                        "type": "string",
+                        "defaultValue": "[variables('keyvaultSecretUri')]"
+                    },
+                    "Metric": {
+                        "type": "string",
+                        "defaultValue": "actualcost"
+                    }
+                },
+                "annotations": []
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/datasets/ccmreportstorage')]",
+                "[concat(variables('dataFactoryId'), '/datasets/ccmdatalake')]",
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmkeyvault')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/GetUsageCurrent')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "SetUsageDate1",
+                        "type": "SetVariable",
+                        "dependsOn": [
+                            {
+                                "activity": "IsWeek1",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "UsageDate1",
+                            "value": {
+                                "value": "@variables('UsageStartDate')",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "SetUsageDate2",
+                        "type": "SetVariable",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageDate1",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "UsageDate2",
+                            "value": {
+                                "value": "@variables('UsageStartDate')",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "SetRange",
+                        "type": "Until",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageDate2",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@equals(variables('UsageDate2'), variables('UsageEndDate'))",
+                                "type": "Expression"
+                            },
+                            "activities": [
+                                {
+                                    "name": "IncrementUsageDate1",
+                                    "type": "SetVariable",
+                                    "dependsOn": [
+                                        {
+                                            "activity": "Append variable1",
+                                            "dependencyConditions": [
+                                                "Succeeded"
+                                            ]
+                                        }
+                                    ],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDate1",
+                                        "value": {
+                                            "value": "@adddays(variables('UsageDate2'), 1)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "IncrementUsageDate2",
+                                    "type": "SetVariable",
+                                    "dependsOn": [
+                                        {
+                                            "activity": "IncrementUsageDate1",
+                                            "dependencyConditions": [
+                                                "Succeeded"
+                                            ]
+                                        }
+                                    ],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDate2",
+                                        "value": {
+                                            "value": "@variables('UsageDate1')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "Append variable1",
+                                    "type": "AppendVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDates",
+                                        "value": {
+                                            "value": "@formatDateTime(variables('UsageDate1'), 'yyyy-MM-dd')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "timeout": "0.00:10:00"
+                        }
+                    },
+                    {
+                        "name": "DownloadRange",
+                        "type": "ForEach",
+                        "dependsOn": [
+                            {
+                                "activity": "SetRange",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "items": {
+                                "value": "@variables('UsageDates')",
+                                "type": "Expression"
+                            },
+                            "isSequential": false,
+                            "batchCount": 10,
+                            "activities": [
+                                {
+                                    "name": "DownloadActualCosts",
+                                    "type": "ExecutePipeline",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "pipeline": {
+                                            "referenceName": "DownloadUsageDetails",
+                                            "type": "PipelineReference"
+                                        },
+                                        "waitOnCompletion": true,
+                                        "parameters": {
+                                            "UsageDate": {
+                                                "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "Metric": "actualcost"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "DownloadAmortizedCosts",
+                                    "type": "ExecutePipeline",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "pipeline": {
+                                            "referenceName": "DownloadUsageDetails",
+                                            "type": "PipelineReference"
+                                        },
+                                        "waitOnCompletion": true,
+                                        "parameters": {
+                                            "UsageDate": {
+                                                "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "Metric": "amortizedcost"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "SetUsageEndDate",
+                        "type": "SetVariable",
+                        "dependsOn": [],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "UsageEndDate",
+                            "value": {
+                                "value": "@formatDateTime(formatDateTime(utcnow(), 'yyyy-MM-dd'))",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "IsWeek1",
+                        "type": "IfCondition",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageEndDate",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@less(dayOfMonth(utcnow()), 7)",
+                                "type": "Expression"
+                            },
+                            "ifFalseActivities": [
+                                {
+                                    "name": "SetCurrentMonth",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageStartDate",
+                                        "value": {
+                                            "value": "@formatDateTime(formatDateTime(startOfMonth(utcnow()), 'yyyy-MM-dd'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ifTrueActivities": [
+                                {
+                                    "name": "SetPreviousMonth",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageStartDate",
+                                        "value": {
+                                            "value": "@formatDateTime(subtractFromTime(startOfMonth(utcnow()), 1, 'Month'), 'yyyy-MM-dd')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "variables": {
+                    "UsageEndDate": {
+                        "type": "String"
+                    },
+                    "UsageDate1": {
+                        "type": "String"
+                    },
+                    "UsageDate2": {
+                        "type": "String"
+                    },
+                    "UsageDates": {
+                        "type": "Array"
+                    },
+                    "UsageStartDate": {
+                        "type": "String"
+                    }
+                },
+                "annotations": []
+            },
+            "dependsOn": [
+                    "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/GetUsageRange')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "activities": [
+                    {
+                        "name": "SetUsageDate1",
+                        "type": "SetVariable",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageEndDate",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "UsageDate1",
+                            "value": {
+                                "value": "@formatDateTime(pipeline().parameters.UsageStartDate)",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "SetUsageDate2",
+                        "type": "SetVariable",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageDate1",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "variableName": "UsageDate2",
+                            "value": {
+                                "value": "@formatDateTime(pipeline().parameters.UsageStartDate)",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "SetRange",
+                        "type": "Until",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageDate2",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@equals(variables('UsageDate2'), variables('UsageEndDate'))",
+                                "type": "Expression"
+                            },
+                            "activities": [
+                                {
+                                    "name": "IncrementUsageDate1",
+                                    "type": "SetVariable",
+                                    "dependsOn": [
+                                        {
+                                            "activity": "AppendUsageDates",
+                                            "dependencyConditions": [
+                                                "Succeeded"
+                                            ]
+                                        }
+                                    ],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDate1",
+                                        "value": {
+                                            "value": "@adddays(variables('UsageDate2'), 1)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "IncrementUsageDate2",
+                                    "type": "SetVariable",
+                                    "dependsOn": [
+                                        {
+                                            "activity": "IncrementUsageDate1",
+                                            "dependencyConditions": [
+                                                "Succeeded"
+                                            ]
+                                        }
+                                    ],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDate2",
+                                        "value": {
+                                            "value": "@variables('UsageDate1')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "AppendUsageDates",
+                                    "type": "AppendVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageDates",
+                                        "value": {
+                                            "value": "@formatDateTime(variables('UsageDate1'), 'yyyy-MM-dd')",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "timeout": "0.00:10:00"
+                        }
+                    },
+                    {
+                        "name": "DownloadRange",
+                        "type": "ForEach",
+                        "dependsOn": [
+                            {
+                                "activity": "SetRange",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "items": {
+                                "value": "@variables('UsageDates')",
+                                "type": "Expression"
+                            },
+                            "isSequential": false,
+                            "batchCount": 10,
+                            "activities": [
+                                {
+                                    "name": "DownloadActualCosts",
+                                    "type": "ExecutePipeline",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "pipeline": {
+                                            "referenceName": "DownloadUsageDetails",
+                                            "type": "PipelineReference"
+                                        },
+                                        "waitOnCompletion": true,
+                                        "parameters": {
+                                            "UsageDate": {
+                                                "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "Metric": "actualcost"
+                                        }
+                                    }
+                                },
+                                {
+                                    "name": "DownloadAmortizedCosts",
+                                    "type": "ExecutePipeline",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "pipeline": {
+                                            "referenceName": "DownloadUsageDetails",
+                                            "type": "PipelineReference"
+                                        },
+                                        "waitOnCompletion": true,
+                                        "parameters": {
+                                            "UsageDate": {
+                                                "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "Metric": "amortizedcost"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "SetUsageEndDate",
+                        "type": "IfCondition",
+                        "dependsOn": [],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@equals(pipeline().parameters.UsageEndDate, null)",
+                                "type": "Expression"
+                            },
+                            "ifFalseActivities": [
+                                {
+                                    "name": "SetCustomUsageEndDate",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageEndDate",
+                                        "value": {
+                                            "value": "@formatDateTime(pipeline().parameters.UsageEndDate)",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ],
+                            "ifTrueActivities": [
+                                {
+                                    "name": "SetDefaultUsageEndDate",
+                                    "type": "SetVariable",
+                                    "dependsOn": [],
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "variableName": "UsageEndDate",
+                                        "value": {
+                                            "value": "@formatDateTime(formatDateTime(utcnow(), 'yyyy-MM-dd'))",
+                                            "type": "Expression"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "parameters": {
+                    "UsageStartDate": {
+                        "type": "string",
+                        "defaultValue": "2021-01-01"
+                    },
+                    "UsageEndDate": {
+                        "type": "string",
+                        "defaultValue": "2021-02-01"
+                    }
+                },
+                "variables": {
+                    "UsageEndDate": {
+                        "type": "String"
+                    },
+                    "UsageDate1": {
+                        "type": "String"
+                    },
+                    "UsageDate2": {
+                        "type": "String"
+                    },
+                    "UsageDates": {
+                        "type": "Array"
+                    }
+                },
+                "annotations": []
+            },
+             "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]"
+            ]
+        },
+        {
+            "type": "Microsoft.DataFactory/factories",
+            "apiVersion": "2018-06-01",
+            "name": "[parameters('DataFactoryName')]",
+            "location": "[resourceGroup().location]",
+            "properties": {
+            },
+            "dependsOn": [
+            ],
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "resources": [
+                
+            ]
+        },
+        {
+            "name": "[parameters('KeyvaultName')]",
+            "type": "Microsoft.KeyVault/vaults",
+            "apiVersion": "2019-09-01",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "[parameters('KeyvaultName')]"
+            },
+            "dependsOn": [
+                "[resourceId('Microsoft.DataFactory/factories', parameters('DataFactoryName'))]"
+            ],
+            "properties": {
+                "enabledForDeployment": true,
+                "enabledForTemplateDeployment": true,
+                "enabledForDiskEncryption": true,
+                "tenantId": "[subscription().tenantId]",
+                "accessPolicies": [
+                    {
+                        "tenantId": "[reference(resourceId('Microsoft.DataFactory/factories', parameters('DataFactoryName')), '2018-06-01', 'Full').identity.tenantId]",
+                        "objectId": "[reference(resourceId('Microsoft.DataFactory/factories', parameters('DataFactoryName')), '2018-06-01', 'Full').identity.principalId]",
+                        "permissions": {
+                            "secrets": [
+                                "Get"
+                            ]
+                        }
+                    }
+                ],
+                "sku": {
+                    "name": "standard",
+                    "family": "A"
+                }
+            },
+            "resources": [
+            ]
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[parameters('storageAccountName')]",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard_LRS"
+            },
+            "kind": "StorageV2",
+            "properties": {
+                "allowBlobPublicAccess": false,
+                "isHnsEnabled": true,
+                "minimumTlsVersion": "TLS1_2"
+            },
+            "resources": [
+                {
+                    "type": "blobServices/containers",
+                    "apiVersion": "2019-06-01",
+                    "name": "[concat('default/', parameters('blobContainerName'))]",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Storage/storageAccounts', parameters('StorageAccountName'))]"
+                    ]
+                }
+            ]
+        }
+    ]
+}
