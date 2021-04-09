@@ -28,12 +28,15 @@ az deployment group create \
 ### Post Deployment
 
 #### Initialize the dataset
+Initialize the dataset by executing the "GetUsageRange" pipeline and providing the desired date range.  
+- UsageStartDate - Set to the first date to download - for example the beginning of current FY or quarter.
+- UsageEndDate - Set to the current date.
 
-![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/Initialize.jpg)
+![Initialize](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/Initialize.jpg)
 
-![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/SetDates.jpg)
+![SetDates](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/SetDates.jpg)
 
 #### Start the daily Schedule
-
+Once the dataset is initialized enable the daily schedule and **publish the changes.**
 
 ![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/StartSchedule.jpg)
