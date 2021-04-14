@@ -124,7 +124,10 @@
                     "tenant": "[parameters('ServicePrincipalTenantId')]",
                     "aadResourceId": "[parameters('ManagementApiUri')]"
                 }
-            }
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmkeyvault')]"
+            ]
         },
         {
             "name": "[concat(parameters('DataFactoryName'), '/azurerm')]",
@@ -149,7 +152,10 @@
                     }
                 },
                 "schema": []
-            }
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/linkedServices/azurerm')]"
+            ]
         },
         {
             "name": "[concat(parameters('DataFactoryName'), '/ccmdatalake')]",
@@ -1433,7 +1439,12 @@
                     }
                 },
                 "annotations": []
-            }
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/datasets/ccmreportstorage')]",
+                "[concat(variables('dataFactoryId'), '/datasets/ccmdatalake')]",
+                "[concat(variables('dataFactoryId'), '/linkedServices/ccmkeyvault')]"
+            ]
         },
         {
             "name": "[concat(parameters('DataFactoryName'), '/DownloadUsageDetails')]",
