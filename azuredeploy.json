@@ -102,6 +102,56 @@
             ]
         },
         {
+            "name": "[concat(parameters('DataFactoryName'), '/azurerm')]",
+            "type": "Microsoft.DataFactory/factories/linkedservices",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "annotations": [],
+                "type": "RestService",
+                "typeProperties": {
+                    "url": "[parameters('ManagementApiUri')]",
+                    "enableServerCertificateValidation": true,
+                    "authenticationType": "AadServicePrincipal",
+                    "servicePrincipalId": "[parameters('ServicePrincipalId')]",
+                    "servicePrincipalKey": {
+                        "type": "AzureKeyVaultSecret",
+                        "store": {
+                            "referenceName": "ccmkeyvault",
+                            "type": "LinkedServiceReference"
+                        },
+                        "secretName": "[variables('enterpriseReader')]"
+                    },
+                    "tenant": "[parameters('ServicePrincipalTenantId')]",
+                    "aadResourceId": "[parameters('ManagementApiUri')]"
+                }
+            }
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/azurerm')]",
+            "type": "Microsoft.DataFactory/factories/datasets",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "linkedServiceName": {
+                    "referenceName": "azurerm",
+                    "type": "LinkedServiceReference"
+                },
+                "parameters": {
+                    "RelativeUrl": {
+                        "type": "string"
+                    }
+                },
+                "annotations": [],
+                "type": "RestResource",
+                "typeProperties": {
+                    "relativeUrl": {
+                        "value": "@dataset().RelativeUrl",
+                        "type": "Expression"
+                    }
+                },
+                "schema": []
+            }
+        },
+        {
             "name": "[concat(parameters('DataFactoryName'), '/ccmdatalake')]",
             "type": "Microsoft.DataFactory/factories/datasets",
             "apiVersion": "2018-06-01",
@@ -245,39 +295,876 @@
             ]
         },
         {
-            "name": "[concat(parameters('DataFactoryName'), '/DailyTrigger')]",
-            "type": "Microsoft.DataFactory/factories/triggers",
-            "apiVersion": "2018-06-01",
-            "properties": {
-                "annotations": [],
-                "runtimeState": "Started",
-                "pipelines": [
-                    {
-                        "pipelineReference": {
-                            "referenceName": "GetUsageCurrent",
-                            "type": "PipelineReference"
-                        }
-                    }
-                ],
-                "type": "ScheduleTrigger",
-                "typeProperties": {
-                    "recurrence": {
-                        "frequency": "Day",
-                        "interval": 1,
-                        "startTime": "2021-04-01T02:22:00Z",
-                        "timeZone": "UTC"
-                    }
-                }
-            },
-            "dependsOn": [
-                "[concat(variables('dataFactoryId'), '/pipelines/GetUsageCurrent')]"
-            ]
-        },
-        {
-            "name": "[concat(parameters('DataFactoryName'), '/DownloadUsageDetails')]",
+            "name": "[concat(parameters('DataFactoryName'), '/DownloadConsumptionData')]",
             "type": "Microsoft.DataFactory/factories/pipelines",
             "apiVersion": "2018-06-01",
             "properties": {
+                "activities": [
+                    {
+                        "name": "DownloadRICharges",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "7.00:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "RestSource",
+                                "httpRequestTimeout": "00:10:00",
+                                "requestInterval": "00.00:00:00.010",
+                                "requestMethod": "GET"
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "mappings": [
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['eventDate']"
+                                        },
+                                        "sink": {
+                                            "name": "eventDate"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['reservationOrderId']"
+                                        },
+                                        "sink": {
+                                            "name": "reservationOrderId"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['description']"
+                                        },
+                                        "sink": {
+                                            "name": "description"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['eventType']"
+                                        },
+                                        "sink": {
+                                            "name": "eventType"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['quantity']"
+                                        },
+                                        "sink": {
+                                            "name": "quantity"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['amount']"
+                                        },
+                                        "sink": {
+                                            "name": "amount"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['currency']"
+                                        },
+                                        "sink": {
+                                            "name": "currency"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['reservationOrderName']"
+                                        },
+                                        "sink": {
+                                            "name": "reservationOrderName"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['purchasingEnrollment']"
+                                        },
+                                        "sink": {
+                                            "name": "purchasingEnrollment"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['armSkuName']"
+                                        },
+                                        "sink": {
+                                            "name": "armSkuName"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['term']"
+                                        },
+                                        "sink": {
+                                            "name": "term"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['region']"
+                                        },
+                                        "sink": {
+                                            "name": "region"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['purchasingSubscriptionGuid']"
+                                        },
+                                        "sink": {
+                                            "name": "purchasingSubscriptionGuid"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['purchasingSubscriptionName']"
+                                        },
+                                        "sink": {
+                                            "name": "purchasingSubscriptionName"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['accountName']"
+                                        },
+                                        "sink": {
+                                            "name": "accountName"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['accountOwnerEmail']"
+                                        },
+                                        "sink": {
+                                            "name": "accountOwnerEmail"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['departmentName']"
+                                        },
+                                        "sink": {
+                                            "name": "departmentName"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['costCenter']"
+                                        },
+                                        "sink": {
+                                            "name": "costCenter"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['currentEnrollment']"
+                                        },
+                                        "sink": {
+                                            "name": "currentEnrollment"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['billingFrequency']"
+                                        },
+                                        "sink": {
+                                            "name": "billingFrequency"
+                                        }
+                                    }
+                                ],
+                                "collectionReference": "$['value']"
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "azurerm",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "RelativeUrl": {
+                                        "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/reservationTransactions?api-version=2019-05-01&$filter=properties/EventDate+ge+2016-01-01+AND+properties/EventDate+le+2021-04-13",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@pipeline().parameters.EnrollmentId",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": "richarges.csv.gz"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "DownloadBalanceSummary",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "7.00:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "RestSource",
+                                "httpRequestTimeout": "00:10:00",
+                                "requestInterval": "00.00:00:00.010",
+                                "requestMethod": "GET"
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "mappings": [
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['currency']"
+                                        },
+                                        "sink": {
+                                            "name": "currency"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['beginningBalance']"
+                                        },
+                                        "sink": {
+                                            "name": "beginningBalance"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['endingBalance']"
+                                        },
+                                        "sink": {
+                                            "name": "endingBalance"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['newPurchases']"
+                                        },
+                                        "sink": {
+                                            "name": "newPurchases"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['adjustments']"
+                                        },
+                                        "sink": {
+                                            "name": "adjustments"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['utilized']"
+                                        },
+                                        "sink": {
+                                            "name": "utilized"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['serviceOverage']"
+                                        },
+                                        "sink": {
+                                            "name": "serviceOverage"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['chargesBilledSeparately']"
+                                        },
+                                        "sink": {
+                                            "name": "chargesBilledSeparately"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['totalOverage']"
+                                        },
+                                        "sink": {
+                                            "name": "totalOverage"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['totalUsage']"
+                                        },
+                                        "sink": {
+                                            "name": "totalUsage"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['azureMarketplaceServiceCharges']"
+                                        },
+                                        "sink": {
+                                            "name": "azureMarketplaceServiceCharges"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['billingFrequency']"
+                                        },
+                                        "sink": {
+                                            "name": "billingFrequency"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['priceHidden']"
+                                        },
+                                        "sink": {
+                                            "name": "priceHidden"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['newPurchasesDetails']"
+                                        },
+                                        "sink": {
+                                            "name": "newPurchasesDetails"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "$['properties']['adjustmentDetails']"
+                                        },
+                                        "sink": {
+                                            "name": "adjustmentDetails"
+                                        }
+                                    }
+                                ],
+                                "collectionReference": "",
+                                "mapComplexValuesToString": true
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "azurerm",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "RelativeUrl": {
+                                        "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/microsoft.consumption/balances?api-version=2019-10-01 ",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@pipeline().parameters.EnrollmentId",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": "balancesummary.csv.gz"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "DownloadRIRecommendationsShared",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "7.00:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "RestSource",
+                                "httpRequestTimeout": "00:10:00",
+                                "requestInterval": "00.00:00:00.010",
+                                "requestMethod": "GET"
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "mappings": [
+                                    {
+                                        "source": {
+                                            "path": "[['location']"
+                                        },
+                                        "sink": {
+                                            "name": "location"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['sku']"
+                                        },
+                                        "sink": {
+                                            "name": "sku"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['meterId']"
+                                        },
+                                        "sink": {
+                                            "name": "meterId"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['term']"
+                                        },
+                                        "sink": {
+                                            "name": "term"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['costWithNoReservedInstances']"
+                                        },
+                                        "sink": {
+                                            "name": "costWithNoReservedInstances"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['recommendedQuantity']"
+                                        },
+                                        "sink": {
+                                            "name": "recommendedQuantity"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['totalCostWithReservedInstances']"
+                                        },
+                                        "sink": {
+                                            "name": "totalCostWithReservedInstances"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['netSavings']"
+                                        },
+                                        "sink": {
+                                            "name": "netSavings"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['firstUsageDate']"
+                                        },
+                                        "sink": {
+                                            "name": "firstUsageDate"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['scope']"
+                                        },
+                                        "sink": {
+                                            "name": "scope"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['lookBackPeriod']"
+                                        },
+                                        "sink": {
+                                            "name": "lookBackPeriod"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['instanceFlexibilityRatio']"
+                                        },
+                                        "sink": {
+                                            "name": "instanceFlexibilityRatio"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['instanceFlexibilityGroup']"
+                                        },
+                                        "sink": {
+                                            "name": "instanceFlexibilityGroup"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['normalizedSize']"
+                                        },
+                                        "sink": {
+                                            "name": "normalizedSize"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['recommendedQuantityNormalized']"
+                                        },
+                                        "sink": {
+                                            "name": "recommendedQuantityNormalized"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['skuProperties']"
+                                        },
+                                        "sink": {
+                                            "name": "skuProperties"
+                                        }
+                                    }
+                                ],
+                                "collectionReference": "$['value']",
+                                "mapComplexValuesToString": true
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "azurerm",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "RelativeUrl": {
+                                        "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/reservationRecommendations?$filter=properties/scope+eq+'Shared'+AND+properties/lookBackPeriod+eq+'Last30Days'&api-version=2019-10-01",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@pipeline().parameters.EnrollmentId",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": "rirecommendationsshared.csv.gz"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "DownloadRIRecommendationsSingle",
+                        "type": "Copy",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "7.00:00:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": false,
+                            "secureInput": false
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "RestSource",
+                                "httpRequestTimeout": "00:10:00",
+                                "requestInterval": "00.00:00:00.010",
+                                "requestMethod": "GET",
+                                "paginationRules": {
+                                    "AbsoluteUrl": "$['nextLink']"
+                                }
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "mappings": [
+                                    {
+                                        "source": {
+                                            "path": "[['location']"
+                                        },
+                                        "sink": {
+                                            "name": "location"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['sku']"
+                                        },
+                                        "sink": {
+                                            "name": "sku"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['meterId']"
+                                        },
+                                        "sink": {
+                                            "name": "meterId"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['term']"
+                                        },
+                                        "sink": {
+                                            "name": "term"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['costWithNoReservedInstances']"
+                                        },
+                                        "sink": {
+                                            "name": "costWithNoReservedInstances"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['recommendedQuantity']"
+                                        },
+                                        "sink": {
+                                            "name": "recommendedQuantity"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['totalCostWithReservedInstances']"
+                                        },
+                                        "sink": {
+                                            "name": "totalCostWithReservedInstances"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['netSavings']"
+                                        },
+                                        "sink": {
+                                            "name": "netSavings"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['firstUsageDate']"
+                                        },
+                                        "sink": {
+                                            "name": "firstUsageDate"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['scope']"
+                                        },
+                                        "sink": {
+                                            "name": "scope"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['lookBackPeriod']"
+                                        },
+                                        "sink": {
+                                            "name": "lookBackPeriod"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['instanceFlexibilityRatio']"
+                                        },
+                                        "sink": {
+                                            "name": "instanceFlexibilityRatio"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['instanceFlexibilityGroup']"
+                                        },
+                                        "sink": {
+                                            "name": "instanceFlexibilityGroup"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['normalizedSize']"
+                                        },
+                                        "sink": {
+                                            "name": "normalizedSize"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['recommendedQuantityNormalized']"
+                                        },
+                                        "sink": {
+                                            "name": "recommendedQuantityNormalized"
+                                        }
+                                    },
+                                    {
+                                        "source": {
+                                            "path": "[['properties']['skuProperties']"
+                                        },
+                                        "sink": {
+                                            "name": "skuProperties"
+                                        }
+                                    }
+                                ],
+                                "collectionReference": "$['value']",
+                                "mapComplexValuesToString": true
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "azurerm",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "RelativeUrl": {
+                                        "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/reservationRecommendations?$filter=properties/scope+eq+'Single'+AND+properties/lookBackPeriod+eq+'Last30Days'&api-version=2019-10-01",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@pipeline().parameters.EnrollmentId",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": "rirecommendationssingle.csv.gz"
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "DownloadPricesheet",
+                        "type": "ExecutePipeline",
+                        "dependsOn": [],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "pipeline": {
+                                "referenceName": "DownloadPriceSheet",
+                                "type": "PipelineReference"
+                            },
+                            "waitOnCompletion": true,
+                            "parameters": {
+                                "TenantId": {
+                                    "value": "@pipeline().parameters.TenantId",
+                                    "type": "Expression"
+                                },
+                                "ClientId": {
+                                    "value": "@pipeline().parameters.ClientId",
+                                    "type": "Expression"
+                                },
+                                "EnrollmentId": {
+                                    "value": "@pipeline().parameters.EnrollmentId",
+                                    "type": "Expression"
+                                },
+                                "ClientSecret": {
+                                    "value": "@pipeline().parameters.ClientSecret",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "policy": {
+                    "elapsedTimeMetric": {},
+                    "cancelAfter": {}
+                },
+                "parameters": {
+                    "TenantId": {
+                        "type": "string"
+                    },
+                    "ClientId": {
+                        "type": "string"
+                    },
+                    "EnrollmentId": {
+                        "type": "string"
+                    },
+                    "UsageDate": {
+                        "type": "string"
+                    },
+                    "ClientSecret": {
+                        "type": "string"
+                    }
+                },
+                "annotations": []
+            },
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/datasets/azurerm')]",
+                "[concat(variables('dataFactoryId'), '/datasets/ccmdatalake')]",
+                "[concat(variables('dataFactoryId'), '/pipelines/DownloadPriceSheet')]"
+            ]
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/DownloadPriceSheet')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "description": "Downloads the current pricesheet for the enrollment",
                 "activities": [
                     {
                         "name": "Login",
@@ -326,7 +1213,283 @@
                         ],
                         "policy": {
                             "timeout": "0.00:10:00",
+                            "retry": 10,
+                            "retryIntervalInSeconds": 60,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/pricesheets/download?api-version=2019-05-01&ln=en",
+                                "type": "Expression"
+                            },
+                            "method": "GET",
+                            "headers": {
+                                "Authorization": {
+                                    "value": "Bearer @{activity('Login').output.access_token}",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "name": "DownloadFile",
+                        "type": "Copy",
+                        "dependsOn": [
+                            {
+                                "activity": "DeleteFile",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
                             "retry": 3,
+                            "retryIntervalInSeconds": 60,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "source": {
+                                "type": "DelimitedTextSource",
+                                "storeSettings": {
+                                    "type": "HttpReadSettings",
+                                    "requestMethod": "GET"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextReadSettings"
+                                }
+                            },
+                            "sink": {
+                                "type": "DelimitedTextSink",
+                                "storeSettings": {
+                                    "type": "AzureBlobFSWriteSettings"
+                                },
+                                "formatSettings": {
+                                    "type": "DelimitedTextWriteSettings",
+                                    "quoteAllText": true,
+                                    "fileExtension": ".txt"
+                                }
+                            },
+                            "enableStaging": false,
+                            "translator": {
+                                "type": "TabularTranslator",
+                                "typeConversion": true,
+                                "typeConversionSettings": {
+                                    "allowDataTruncation": true,
+                                    "treatBooleanAsNumber": false
+                                }
+                            }
+                        },
+                        "inputs": [
+                            {
+                                "referenceName": "ccmreportstorage",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "baseUrl": {
+                                        "value": "@{activity('GetUrl').output.properties.downloadurl}",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ],
+                        "outputs": [
+                            {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@{pipeline().parameters.EnrollmentId}",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": {
+                                        "value": "pricesheet.csv.gz",
+                                        "type": "Expression"
+                                    }
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "name": "GetClientSecret",
+                        "type": "WebActivity",
+                        "dependsOn": [],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "@pipeline().parameters.ClientSecret",
+                                "type": "Expression"
+                            },
+                            "method": "GET",
+                            "authentication": {
+                                "type": "MSI",
+                                "resource": "https://vault.azure.net"
+                            }
+                        }
+                    },
+                    {
+                        "name": "DeleteFile",
+                        "type": "Delete",
+                        "dependsOn": [
+                            {
+                                "activity": "TestDownloadUrl",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "dataset": {
+                                "referenceName": "ccmdatalake",
+                                "type": "DatasetReference",
+                                "parameters": {
+                                    "folderName": {
+                                        "value": "@{pipeline().parameters.EnrollmentId}",
+                                        "type": "Expression"
+                                    },
+                                    "fileName": {
+                                        "value": "pricesheet.csv.gz",
+                                        "type": "Expression"
+                                    }
+                                }
+                            },
+                            "enableLogging": false,
+                            "storeSettings": {
+                                "type": "AzureBlobFSReadSettings",
+                                "recursive": true,
+                                "enablePartitionDiscovery": false
+                            }
+                        }
+                    },
+                    {
+                        "name": "TestDownloadUrl",
+                        "type": "IfCondition",
+                        "dependsOn": [
+                            {
+                                "activity": "GetUrl",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "expression": {
+                                "value": "@not(equals(activity('GetUrl').output.properties.downloadurl, null))",
+                                "type": "Expression"
+                            },
+                            "ifFalseActivities": [
+                                {
+                                    "name": "Failure",
+                                    "type": "WebActivity",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "0.00:10:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": true,
+                                        "secureInput": true
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "url": "https://doesnotwork.local",
+                                        "method": "GET"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "parameters": {
+                    "TenantId": {
+                        "type": "string"
+                    },
+                    "ClientId": {
+                        "type": "string"
+                    },
+                    "EnrollmentId": {
+                        "type": "string"
+                    },
+                    "ClientSecret": {
+                        "type": "string"
+                    }
+                },
+                "annotations": []
+            }
+        },
+        {
+            "name": "[concat(parameters('DataFactoryName'), '/DownloadUsageDetails')]",
+            "type": "Microsoft.DataFactory/factories/pipelines",
+            "apiVersion": "2018-06-01",
+            "properties": {
+                "description": "Downloads a day's worth of usage data - Actual or Amortized per the parameter",
+                "activities": [
+                    {
+                        "name": "Login",
+                        "type": "WebActivity",
+                        "dependsOn": [
+                            {
+                                "activity": "GetClientSecret",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 0,
+                            "retryIntervalInSeconds": 30,
+                            "secureOutput": true,
+                            "secureInput": true
+                        },
+                        "userProperties": [],
+                        "typeProperties": {
+                            "url": {
+                                "value": "https://login.microsoftonline.com/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
+                                "type": "Expression"
+                            },
+                            "method": "POST",
+                            "headers": {
+                                "Content-Type": "application/x-www-form-urlencoded"
+                            },
+                            "body": {
+                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
+                                "type": "Expression"
+                            }
+                        }
+                    },
+                    {
+                        "name": "GetUrl",
+                        "type": "WebActivity",
+                        "dependsOn": [
+                            {
+                                "activity": "Login",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "policy": {
+                            "timeout": "0.00:10:00",
+                            "retry": 10,
                             "retryIntervalInSeconds": 60,
                             "secureOutput": true,
                             "secureInput": true
@@ -533,24 +1696,19 @@
                 ],
                 "parameters": {
                     "TenantId": {
-                        "type": "string",
-                        "defaultValue": "[parameters('ServicePrincipalTenantId')]"
+                        "type": "string"
                     },
                     "ClientId": {
-                        "type": "string",
-                        "defaultValue": "[parameters('ServicePrincipalId')]"
+                        "type": "string"
                     },
                     "EnrollmentId": {
-                        "type": "string",
-                        "defaultValue": "[parameters('EnrollmentId')]"
+                        "type": "string"
                     },
                     "UsageDate": {
-                        "type": "string",
-                        "defaultValue": "2021-04-01"
+                        "type": "string"
                     },
                     "ClientSecret": {
-                        "type": "string",
-                        "defaultValue": "[variables('keyvaultSecretUri')]"
+                        "type": "string"
                     },
                     "Metric": {
                         "type": "string",
@@ -570,6 +1728,7 @@
             "type": "Microsoft.DataFactory/factories/pipelines",
             "apiVersion": "2018-06-01",
             "properties": {
+                "description": "Downloads MTD consumption data (and the entire previous month if within the first week)",
                 "activities": [
                     {
                         "name": "SetUsageDate1",
@@ -704,7 +1863,7 @@
                                 "type": "Expression"
                             },
                             "isSequential": false,
-                            "batchCount": 10,
+                            "batchCount": 8,
                             "activities": [
                                 {
                                     "name": "DownloadActualCosts",
@@ -718,8 +1877,24 @@
                                         },
                                         "waitOnCompletion": true,
                                         "parameters": {
+                                            "TenantId": {
+                                                "value": "@pipeline().parameters.TenantId",
+                                                "type": "Expression"
+                                            },
+                                            "ClientId": {
+                                                "value": "@pipeline().parameters.ClientId",
+                                                "type": "Expression"
+                                            },
+                                            "EnrollmentId": {
+                                                "value": "@pipeline().parameters.EnrollmentId",
+                                                "type": "Expression"
+                                            },
                                             "UsageDate": {
                                                 "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "ClientSecret": {
+                                                "value": "@pipeline().parameters.ClientSecret",
                                                 "type": "Expression"
                                             },
                                             "Metric": "actualcost"
@@ -738,13 +1913,175 @@
                                         },
                                         "waitOnCompletion": true,
                                         "parameters": {
+                                            "TenantId": {
+                                                "value": "@pipeline().parameters.TenantId",
+                                                "type": "Expression"
+                                            },
+                                            "ClientId": {
+                                                "value": "@pipeline().parameters.ClientId",
+                                                "type": "Expression"
+                                            },
+                                            "EnrollmentId": {
+                                                "value": "@pipeline().parameters.EnrollmentId",
+                                                "type": "Expression"
+                                            },
                                             "UsageDate": {
                                                 "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "ClientSecret": {
+                                                "value": "@pipeline().parameters.ClientSecret",
                                                 "type": "Expression"
                                             },
                                             "Metric": "amortizedcost"
                                         }
                                     }
+                                },
+                                {
+                                    "name": "DownloadReservationSummaries",
+                                    "type": "Copy",
+                                    "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "7.00:00:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
+                                    "userProperties": [],
+                                    "typeProperties": {
+                                        "source": {
+                                            "type": "RestSource",
+                                            "httpRequestTimeout": "00:10:00",
+                                            "requestInterval": "00.00:00:00.010",
+                                            "requestMethod": "GET"
+                                        },
+                                        "sink": {
+                                            "type": "DelimitedTextSink",
+                                            "storeSettings": {
+                                                "type": "AzureBlobFSWriteSettings"
+                                            },
+                                            "formatSettings": {
+                                                "type": "DelimitedTextWriteSettings",
+                                                "quoteAllText": true,
+                                                "fileExtension": ".txt"
+                                            }
+                                        },
+                                        "enableStaging": false,
+                                        "translator": {
+                                            "type": "TabularTranslator",
+                                            "mappings": [
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservationOrderId']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservationOrderId",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservationId']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservationId",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['skuName']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "skuName",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservedHours']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservedHours",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['usageDate']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "usageDate",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['usedHours']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "usedHours",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['minUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "minUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['avgUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "avgUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['maxUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "maxUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                }
+                                            ],
+                                            "collectionReference": "$['value']",
+                                            "mapComplexValuesToString": true
+                                        }
+                                    },
+                                    "inputs": [
+                                        {
+                                            "referenceName": "azurerm",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "RelativeUrl": {
+                                                    "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/reservationsummaries?api-version=2019-10-01&grain=daily&$filter=properties/UsageDate+eq+@{item()}",
+                                                    "type": "Expression"
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "referenceName": "ccmdatalake",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "folderName": {
+                                                    "value": "@{pipeline().parameters.EnrollmentId}/@{formatDateTime(item(), 'yyyy')}/@{formatDateTime(item(), 'MM')}/@{formatDateTime(item(), 'dd')}",
+                                                    "type": "Expression"
+                                                },
+                                                "fileName": "riusagesummary.csv.gz"
+                                            }
+                                        }
+                                    ]
                                 }
                             ]
                         }
@@ -810,8 +2147,72 @@
                                 }
                             ]
                         }
+                    },
+                    {
+                        "name": "DownloadLatest",
+                        "type": "ExecutePipeline",
+                        "dependsOn": [
+                            {
+                                "activity": "SetUsageEndDate",
+                                "dependencyConditions": [
+                                    "Succeeded"
+                                ]
+                            }
+                        ],
+                        "userProperties": [],
+                        "typeProperties": {
+                            "pipeline": {
+                                "referenceName": "DownloadConsumptionData",
+                                "type": "PipelineReference"
+                            },
+                            "waitOnCompletion": true,
+                            "parameters": {
+                                "TenantId": {
+                                    "value": "@pipeline().parameters.TenantId",
+                                    "type": "Expression"
+                                },
+                                "ClientId": {
+                                    "value": "@pipeline().parameters.ClientId",
+                                    "type": "Expression"
+                                },
+                                "EnrollmentId": {
+                                    "value": "@pipeline().parameters.EnrollmentId",
+                                    "type": "Expression"
+                                },
+                                "UsageDate": {
+                                    "value": "@variables('UsageEndDate')",
+                                    "type": "Expression"
+                                },
+                                "ClientSecret": {
+                                    "value": "@pipeline().parameters.ClientSecret",
+                                    "type": "Expression"
+                                }
+                            }
+                        }
                     }
                 ],
+                "policy": {
+                    "elapsedTimeMetric": {},
+                    "cancelAfter": {}
+                },
+                "parameters": {
+                    "TenantId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalTenantId')]"
+                    },
+                    "ClientId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalId')]"
+                    },
+                    "EnrollmentId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('EnrollmentId')]"
+                    },
+                    "ClientSecret": {
+                        "type": "string",
+                        "defaultValue": "[variables('keyvaultSecretUri')]"
+                    }
+                },
                 "variables": {
                     "UsageEndDate": {
                         "type": "String"
@@ -832,7 +2233,10 @@
                 "annotations": []
             },
             "dependsOn": [
-                    "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]"
+                "[concat(variables('dataFactoryId'), '/pipelines/DownloadConsumptionData')]",
+                "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]",
+                "[concat(variables('dataFactoryId'), '/datasets/azurerm')]",
+                "[concat(variables('dataFactoryId'), '/datasets/ccmdatalake')]"
             ]
         },
         {
@@ -840,18 +2244,12 @@
             "type": "Microsoft.DataFactory/factories/pipelines",
             "apiVersion": "2018-06-01",
             "properties": {
+                "description": "Downloads consumption data for the specified data range.",
                 "activities": [
                     {
                         "name": "SetUsageDate1",
                         "type": "SetVariable",
-                        "dependsOn": [
-                            {
-                                "activity": "SetUsageEndDate",
-                                "dependencyConditions": [
-                                    "Succeeded"
-                                ]
-                            }
-                        ],
+                        "dependsOn": [],
                         "userProperties": [],
                         "typeProperties": {
                             "variableName": "UsageDate1",
@@ -895,7 +2293,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "expression": {
-                                "value": "@equals(variables('UsageDate2'), variables('UsageEndDate'))",
+                                "value": "@equals(variables('UsageDate2'), formatDateTime(pipeline().parameters.UsageEndDate))",
                                 "type": "Expression"
                             },
                             "activities": [
@@ -974,7 +2372,7 @@
                                 "type": "Expression"
                             },
                             "isSequential": false,
-                            "batchCount": 10,
+                            "batchCount": 8,
                             "activities": [
                                 {
                                     "name": "DownloadActualCosts",
@@ -988,8 +2386,24 @@
                                         },
                                         "waitOnCompletion": true,
                                         "parameters": {
+                                            "TenantId": {
+                                                "value": "@pipeline().parameters.TenantId",
+                                                "type": "Expression"
+                                            },
+                                            "ClientId": {
+                                                "value": "@pipeline().parameters.ClientId",
+                                                "type": "Expression"
+                                            },
+                                            "EnrollmentId": {
+                                                "value": "@pipeline().parameters.EnrollmentId",
+                                                "type": "Expression"
+                                            },
                                             "UsageDate": {
                                                 "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "ClientSecret": {
+                                                "value": "@pipeline().parameters.ClientSecret",
                                                 "type": "Expression"
                                             },
                                             "Metric": "actualcost"
@@ -1008,74 +2422,211 @@
                                         },
                                         "waitOnCompletion": true,
                                         "parameters": {
+                                            "TenantId": {
+                                                "value": "@pipeline().parameters.TenantId",
+                                                "type": "Expression"
+                                            },
+                                            "ClientId": {
+                                                "value": "@pipeline().parameters.ClientId",
+                                                "type": "Expression"
+                                            },
+                                            "EnrollmentId": {
+                                                "value": "@pipeline().parameters.EnrollmentId",
+                                                "type": "Expression"
+                                            },
                                             "UsageDate": {
                                                 "value": "@item()",
+                                                "type": "Expression"
+                                            },
+                                            "ClientSecret": {
+                                                "value": "@pipeline().parameters.ClientSecret",
                                                 "type": "Expression"
                                             },
                                             "Metric": "amortizedcost"
                                         }
                                     }
-                                }
-                            ]
-                        }
-                    },
-                    {
-                        "name": "SetUsageEndDate",
-                        "type": "IfCondition",
-                        "dependsOn": [],
-                        "userProperties": [],
-                        "typeProperties": {
-                            "expression": {
-                                "value": "@equals(pipeline().parameters.UsageEndDate, null)",
-                                "type": "Expression"
-                            },
-                            "ifFalseActivities": [
+                                },
                                 {
-                                    "name": "SetCustomUsageEndDate",
-                                    "type": "SetVariable",
+                                    "name": "DownloadReservationSummaries",
+                                    "type": "Copy",
                                     "dependsOn": [],
+                                    "policy": {
+                                        "timeout": "7.00:00:00",
+                                        "retry": 0,
+                                        "retryIntervalInSeconds": 30,
+                                        "secureOutput": false,
+                                        "secureInput": false
+                                    },
                                     "userProperties": [],
                                     "typeProperties": {
-                                        "variableName": "UsageEndDate",
-                                        "value": {
-                                            "value": "@formatDateTime(pipeline().parameters.UsageEndDate)",
-                                            "type": "Expression"
+                                        "source": {
+                                            "type": "RestSource",
+                                            "httpRequestTimeout": "00:10:00",
+                                            "requestInterval": "00.00:00:00.010",
+                                            "requestMethod": "GET"
+                                        },
+                                        "sink": {
+                                            "type": "DelimitedTextSink",
+                                            "storeSettings": {
+                                                "type": "AzureBlobFSWriteSettings"
+                                            },
+                                            "formatSettings": {
+                                                "type": "DelimitedTextWriteSettings",
+                                                "quoteAllText": true,
+                                                "fileExtension": ".txt"
+                                            }
+                                        },
+                                        "enableStaging": false,
+                                        "translator": {
+                                            "type": "TabularTranslator",
+                                            "mappings": [
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservationOrderId']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservationOrderId",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservationId']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservationId",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['skuName']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "skuName",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['reservedHours']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "reservedHours",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['usageDate']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "usageDate",
+                                                        "type": "String"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['usedHours']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "usedHours",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['minUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "minUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['avgUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "avgUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                },
+                                                {
+                                                    "source": {
+                                                        "path": "[['properties']['maxUtilizationPercentage']"
+                                                    },
+                                                    "sink": {
+                                                        "name": "maxUtilizationPercentage",
+                                                        "type": "Decimal"
+                                                    }
+                                                }
+                                            ],
+                                            "collectionReference": "$['value']",
+                                            "mapComplexValuesToString": true
                                         }
-                                    }
-                                }
-                            ],
-                            "ifTrueActivities": [
-                                {
-                                    "name": "SetDefaultUsageEndDate",
-                                    "type": "SetVariable",
-                                    "dependsOn": [],
-                                    "userProperties": [],
-                                    "typeProperties": {
-                                        "variableName": "UsageEndDate",
-                                        "value": {
-                                            "value": "@formatDateTime(formatDateTime(utcnow(), 'yyyy-MM-dd'))",
-                                            "type": "Expression"
+                                    },
+                                    "inputs": [
+                                        {
+                                            "referenceName": "azurerm",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "RelativeUrl": {
+                                                    "value": "/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/reservationsummaries?api-version=2019-10-01&grain=daily&$filter=properties/UsageDate+eq+@{item()}",
+                                                    "type": "Expression"
+                                                }
+                                            }
                                         }
-                                    }
+                                    ],
+                                    "outputs": [
+                                        {
+                                            "referenceName": "ccmdatalake",
+                                            "type": "DatasetReference",
+                                            "parameters": {
+                                                "folderName": {
+                                                    "value": "@{pipeline().parameters.EnrollmentId}/@{formatDateTime(item(), 'yyyy')}/@{formatDateTime(item(), 'MM')}/@{formatDateTime(item(), 'dd')}",
+                                                    "type": "Expression"
+                                                },
+                                                "fileName": "riusagesummary.csv.gz"
+                                            }
+                                        }
+                                    ]
                                 }
                             ]
                         }
                     }
                 ],
+                "policy": {
+                    "elapsedTimeMetric": {},
+                    "cancelAfter": {}
+                },
                 "parameters": {
+                    "TenantId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalTenantId')]"
+                    },
+                    "ClientId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('ServicePrincipalId')]"
+                    },
+                    "EnrollmentId": {
+                        "type": "string",
+                        "defaultValue": "[parameters('EnrollmentId')]"
+                    },
+                    "ClientSecret": {
+                        "type": "string",
+                        "defaultValue": "[variables('keyvaultSecretUri')]"
+                    },
                     "UsageStartDate": {
                         "type": "string",
-                        "defaultValue": "2021-01-01"
+                        "defaultValue": "2021-03-01"
                     },
                     "UsageEndDate": {
                         "type": "string",
-                        "defaultValue": "2021-02-01"
+                        "defaultValue": "2021-04-01"
                     }
                 },
                 "variables": {
-                    "UsageEndDate": {
-                        "type": "String"
-                    },
                     "UsageDate1": {
                         "type": "String"
                     },
@@ -1088,8 +2639,10 @@
                 },
                 "annotations": []
             },
-             "dependsOn": [
-                "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]"
+            "dependsOn": [
+                "[concat(variables('dataFactoryId'), '/pipelines/DownloadUsageDetails')]",
+                "[concat(variables('dataFactoryId'), '/datasets/azurerm')]",
+                "[concat(variables('dataFactoryId'), '/datasets/ccmdatalake')]"
             ]
         },
         {
@@ -1105,7 +2658,7 @@
                 "type": "SystemAssigned"
             },
             "resources": [
-                
+
             ]
         },
         {

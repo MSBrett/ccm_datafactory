@@ -38,8 +38,8 @@ Initialize the dataset by executing the "GetUsageRange" pipeline and providing t
 
 ![SetDates](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/SetDates.jpg)
 
-#### Start the daily Schedule
-Once the dataset is initialized enable the daily schedule and **publish the changes.**
+#### Create a daily Schedule
+Once the dataset is initialized create a daily schedule for the GetUsageCurrent pipeline and **publish the changes.**
 
 ![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/StartSchedule.jpg)
 
