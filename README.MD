@@ -68,9 +68,9 @@ Once the dataset is initialized create a daily schedule for the GetUsageCurrent 
 
 ![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/StartSchedule.jpg)
 
-## Ingesting the data into Power BI
+## Importing the data into Power BI
 
-To ingest the data into Power BI first create a function to decompress each file in Power BI
+To import the data into Power BI first create a function to decompress each file in Power BI
 
 ***fnUnpackData***
 ```script
@@ -84,10 +84,6 @@ in
 ```
 
 Then create data tables with the following definitions and correct data lake URI
-
-
-
-
 
 ***Amortized Costs***
 ```script
