@@ -1,9 +1,34 @@
-# Automating Azure cost data retrieval for offline analysis with Azure Data Factory
+# Retrieving cost data from Azure for offline analysis with Azure Data Factory
+
 
 ## About
 An example of how to use Azure Data Factory to retrieve usage data from the [Azure Management API](https://docs.microsoft.com/en-us/rest/api/consumption/usagedetails/list) and store the results in [Azure Data Lake](https://docs.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction).  
 
+## Deployment
+
 A [Service Principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal) with [Enrollment Reader](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#permissions-that-can-be-assigned-to-the-spn) permissions assigned at the [Enrollment level](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn) is required before deploying this example.
+
+1. [Create and authenticate your service principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal)
+2. [Assign enrollment account role permission to the SPN](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn)
+
+Take note of the service principal's tenant ID, application ID and secret as they're required for the next step.
+The Enrollment ID variable can be obtained from from *Cost Management and Billing* in the [Azure Portal](https://portal.azure.com) or the [EA Portal](https://ea.azure.com)
+
+
+### Paremeters
+
+Parameter                   | Default Value | Notes
+--------------------------- | ------------- | -------------------------
+Aad Resource Id             | [parameters('managementApiUri')] | Same value as Management API URI
+Blob Container Name         | [concat('ccm', uniqueString(resourceGroup().id, resourceGroup().location))] | 
+Data Factory Name           | [concat('datafactory', uniqueString(resourceGroup().id, resourceGroup().location))] | 
+Enrollment Id               | **Required**| Obtained from Cost Management and Billing in the Azure Portal or the EA Portal
+Keyvault Name               | [concat('keyvault', uniqueString(resourceGroup().id, resourceGroup().location))] | 
+Management Api Uri          | https://management.azure.com | Modify to support different Azure clouds
+Service Principal Id        | **Required** | The Application ID of the service principal (not the object id)
+Service Principal Secret    | **Required** | The password for the service principal obtained during creation
+Service Principal Tenant Id | **Required** | The ID of Azure AD Tenant containing the service principal
+Storage Account Name        | [concat('storage', uniqueString(resourceGroup().id, resourceGroup().location))] | 
 
 
 ### Deploy via the Azure Portal
@@ -27,9 +52,9 @@ az deployment group create \
     --template-file azuredeploy.json \
     --parameters @azuredeploy.parameters.json
 ```
-### Post Deployment
+## Post Deployment
 
-#### Initialize the dataset
+### Initialize the dataset
 Initialize the dataset by executing the "GetUsageRange" pipeline and providing the desired date range.  
 - UsageStartDate - Set to the first date to download - for example the beginning of current FY or quarter.
 - UsageEndDate - Set to the current date.
@@ -38,12 +63,12 @@ Initialize the dataset by executing the "GetUsageRange" pipeline and providing t
 
 ![SetDates](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/SetDates.jpg)
 
-#### Create a daily Schedule
+### Create a daily Schedule
 Once the dataset is initialized create a daily schedule for the GetUsageCurrent pipeline and **publish the changes.**
 
 ![StartSchedule](https://github.com/MSBrett/ccm_datafactory/raw/master/resources/StartSchedule.jpg)
 
-### Ingesting the data into Power BI
+## Ingesting the data into Power BI
 
 To ingest the data into Power BI first create a function to decompress each file in Power BI
 
@@ -59,6 +84,10 @@ in
 ```
 
 Then create data tables with the following definitions and correct data lake URI
+
+
+
+
 
 ***Amortized Costs***
 ```script
