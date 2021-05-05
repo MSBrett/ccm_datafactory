@@ -8,12 +8,40 @@ An example of how to use Azure Data Factory to retrieve usage data from the [Azu
 
 A [Service Principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal) with [Enrollment Reader](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#permissions-that-can-be-assigned-to-the-spn) permissions assigned at the [Enrollment level](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn) is required before deploying this example.
 
+### Create the Service Principal using the Azure Portal
 1. [Create and authenticate your service principal](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#create-and-authenticate-your-service-principal)
 2. [Assign enrollment account role permission to the SPN](https://docs.microsoft.com/en-us/azure/cost-management-billing/manage/assign-roles-azure-service-principals#assign-enrollment-account-role-permission-to-the-spn)
 
 Take note of the service principal's tenant ID, application ID and secret as they're required for the next step.
 The Enrollment ID variable can be obtained from from *Cost Management and Billing* in the [Azure Portal](https://portal.azure.com) or the [EA Portal](https://ea.azure.com)
 
+### Create the Service Principal using Powershell and the Azure CLI
+```powershell
+# Parameters
+$enrollmentNumber='123456789'
+$servicePrincipalName='svc-ea-reader'
+
+# Variables
+$uri='https://management.azure.com/providers/Microsoft.Billing/billingAccounts/{0}/billingRoleAssignments/c67bfb76-2e8d-4728-bf32-f9bdd54c5df2?api-version=2019-10-01-preview' -f $enrollmentNumber
+$fileName=".\$servicePrincipalName.txt"
+
+# Main
+if ($null -eq (get-item $fileName -ErrorAction SilentlyContinue))
+{
+    az ad sp create-for-rbac --skip-assignment --name $servicePrincipalName >> $fileName
+}
+
+$servicePrincipal = (Get-Content $fileName | ConvertFrom-Json)
+$objectId = (az ad sp show --id $servicePrincipal.appId --query objectId -o tsv)
+
+$body='{\"properties\": {\"principalId\": \"<principalId>\",\"principalTenantId\": \"<principalTenantId>\",\"roleDefinitionId\": \"/providers/Microsoft.Billing/billingAccounts/<enrollmentId>/billingRoleDefinitions/24f8edb6-1668-4659-b5e2-40bb5f3a7d7e\"}}'
+
+$body = $body.Replace("<principalId>", $objectId)
+$body = $body.Replace("<principalTenantId>", $servicePrincipal.tenant)
+$body = $body.Replace("<enrollmentId>", $enrollmentNumber)
+
+az rest --method put --uri $uri --body $body --debug
+```
 
 ### Paremeters
 
@@ -55,6 +83,7 @@ az deployment group create \
 ## Post Deployment
 
 ### Initialize the dataset
+Initializing the dataset is a two-step process.
 Initialize the dataset by executing the "GetUsageRange" pipeline and providing the desired date range.  
 - UsageStartDate - Set to the first date to download - for example the beginning of current FY or quarter.
 - UsageEndDate - Set to the current date.
