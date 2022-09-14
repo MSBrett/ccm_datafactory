@@ -1508,7 +1508,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generateDetailedCostReport?api-version=2020-12-01-preview",
+                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generateCostDetailsReport?api-version=2022-05-01",
                                 "type": "Expression"
                             },
                             "method": "POST",
