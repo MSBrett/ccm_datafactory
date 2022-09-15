@@ -1878,7 +1878,7 @@
                                 "type": "Expression"
                             },
                             "isSequential": false,
-                            "batchCount": 4,
+                            "batchCount": 8,
                             "activities": [
                                 {
                                     "name": "DownloadActualCosts",
@@ -2387,7 +2387,7 @@
                                 "type": "Expression"
                             },
                             "isSequential": false,
-                            "batchCount": 4,
+                            "batchCount": 8,
                             "activities": [
                                 {
                                     "name": "DownloadActualCosts",
