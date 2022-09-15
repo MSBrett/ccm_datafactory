@@ -1508,19 +1508,15 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generateDetailedCostReport?api-version=2020-12-01-preview",
+                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/usageDetails/download?metric=@{pipeline().parameters.Metric}&$filter=properties/usageEnd eq '@{pipeline().parameters.UsageDate}'&api-version=2019-10-01",
                                 "type": "Expression"
                             },
-                            "method": "POST",
+                            "method": "GET",
                             "headers": {
                                 "Authorization": {
                                     "value": "Bearer @{activity('Login').output.access_token}",
                                     "type": "Expression"
                                 }
-                            },
-                            "body": {
-                                "value": "{\n    metric:\t'@{pipeline().parameters.Metric}',\n    timePeriod: {\n        start: '@{pipeline().parameters.UsageDate}',\n        end: '@{pipeline().parameters.UsageDate}'\n    }\n}",
-                                "type": "Expression"
                             }
                         }
                     },
