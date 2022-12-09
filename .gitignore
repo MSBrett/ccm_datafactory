@@ -2,3 +2,5 @@
 ./test
 test.sh
 test.ps1
+*.pbix
+*.pbit
