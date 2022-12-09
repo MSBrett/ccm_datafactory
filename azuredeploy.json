@@ -3466,7 +3466,7 @@
                                 "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generatedetailedcostreport?api-version=2022-10-01",
                                 "type": "Expression"
                             },
-                            "method": "GET",
+                            "method": "POST",
                             "headers": {
                                 "Authorization": {
                                     "value": "Bearer @{activity('Login').output.access_token}",
