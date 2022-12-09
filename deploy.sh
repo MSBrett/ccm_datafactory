@@ -1,7 +1,7 @@
 #!/bin/sh
 location='westus'
-subscription='workload'
-resourceGroupName="ccm-lab"
+subscription='Non-Prod-Workloads'
+resourceGroupName="ccm-lab-test"
 
 
 az account set --subscription $subscription
