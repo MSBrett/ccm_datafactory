@@ -56,7 +56,7 @@
         },
         "ManagementApiUri": {
             "type": "string",
-            "defaultValue": "https://management.azure.com",
+            "defaultValue": "https://management.usgovcloudapi.net",
             "metadata": {
                 "description": "The base URL for the Azure Management API"
             }
@@ -71,10 +71,10 @@
     },
     "variables": {
         "dataFactoryId": "[concat('Microsoft.DataFactory/factories/', parameters('DataFactoryName'))]",
-        "datalakeUri": "[concat('https://', parameters('storageAccountName'), '.dfs.core.windows.net')]",
+        "datalakeUri": "[concat('https://', parameters('storageAccountName'), '.dfs.core.usgovcloudapi.net')]",
         "enterpriseReader": "[concat('svc-ea-reader-', uniqueString(resourceGroup().id, resourceGroup().location))]",
-        "keyvaultUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.azure.net/')]",
-        "keyvaultSecretUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.azure.net/secrets/', variables('enterpriseReader'), '?api-version=7.0')]",
+        "keyvaultUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.usgovcloudapi.net/')]",
+        "keyvaultSecretUri": "[concat('https://', parameters('KeyvaultName') ,'.vault.usgovcloudapi.net/secrets/', variables('enterpriseReader'), '?api-version=7.0')]",
         "storageAccountId": "[resourceId('Microsoft.Storage/storageAccounts', parameters('storageAccountName'))]"
     },
     "resources": [
@@ -3142,7 +3142,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://login.microsoftonline.com/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
+                                "value": "https://login.microsoftonline.us/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
                                 "type": "Expression"
                             },
                             "method": "POST",
@@ -3150,7 +3150,7 @@
                                 "Content-Type": "application/x-www-form-urlencoded"
                             },
                             "body": {
-                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
+                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.usgovcloudapi.net%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
                                 "type": "Expression"
                             }
                         }
@@ -3176,7 +3176,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/pricesheets/download?api-version=2021-10-01&ln=en",
+                                "value": "https://management.usgovcloudapi.net/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.Consumption/pricesheets/download?api-version=2021-10-01&ln=en",
                                 "type": "Expression"
                             },
                             "method": "GET",
@@ -3288,7 +3288,7 @@
                             "method": "GET",
                             "authentication": {
                                 "type": "MSI",
-                                "resource": "https://vault.azure.net"
+                                "resource": "https://vault.usgovcloudapi.net"
                             }
                         }
                     },
@@ -3428,7 +3428,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://login.microsoftonline.com/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
+                                "value": "https://login.microsoftonline.us/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
                                 "type": "Expression"
                             },
                             "method": "POST",
@@ -3436,7 +3436,7 @@
                                 "Content-Type": "application/x-www-form-urlencoded"
                             },
                             "body": {
-                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
+                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.usgovcloudapi.net%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
                                 "type": "Expression"
                             }
                         }
@@ -3463,7 +3463,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generatedetailedcostreport?api-version=2022-10-01",
+                                "value": "https://management.usgovcloudapi.net/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generatedetailedcostreport?api-version=2022-10-01",
                                 "type": "Expression"
                             },
                             "method": "POST",
@@ -3579,7 +3579,7 @@
                             "method": "GET",
                             "authentication": {
                                 "type": "MSI",
-                                "resource": "https://vault.azure.net"
+                                "resource": "https://vault.usgovcloudapi.net"
                             }
                         }
                     },
@@ -3727,7 +3727,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://login.microsoftonline.com/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
+                                "value": "https://login.microsoftonline.us/@{pipeline().parameters.TenantId}/oauth2/v2.0/token",
                                 "type": "Expression"
                             },
                             "method": "POST",
@@ -3735,7 +3735,7 @@
                                 "Content-Type": "application/x-www-form-urlencoded"
                             },
                             "body": {
-                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.azure.com%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
+                                "value": "client_id=@{pipeline().parameters.ClientId}&scope=https%3A%2F%2Fmanagement.usgovcloudapi.net%2F.default&client_secret=@{activity('GetClientSecret').output.value}&grant_type=client_credentials",
                                 "type": "Expression"
                             }
                         }
@@ -3762,7 +3762,7 @@
                         "userProperties": [],
                         "typeProperties": {
                             "url": {
-                                "value": "https://management.azure.com/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generateReservationDetailsReport?api-version=2021-10-01&startDate=@{pipeline().parameters.UsageDate}&endDate=@{pipeline().parameters.UsageDate}",
+                                "value": "https://management.usgovcloudapi.net/providers/Microsoft.Billing/billingAccounts/@{pipeline().parameters.EnrollmentId}/providers/Microsoft.CostManagement/generateReservationDetailsReport?api-version=2021-10-01&startDate=@{pipeline().parameters.UsageDate}&endDate=@{pipeline().parameters.UsageDate}",
                                 "type": "Expression"
                             },
                             "method": "POST",
@@ -3875,7 +3875,7 @@
                             "method": "GET",
                             "authentication": {
                                 "type": "MSI",
-                                "resource": "https://vault.azure.net"
+                                "resource": "https://vault.usgovcloudapi.net"
                             }
                         }
                     },
